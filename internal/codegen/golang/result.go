@@ -40,6 +40,15 @@ func buildEnums(r *compiler.Result, settings config.CombinedSettings) []Enum {
 				if _, found := seen[value]; found || value == "" {
 					value = fmt.Sprintf("value_%d", i)
 				}
+
+				if i == 0 {
+					e.Constants = append(e.Constants, Constant{
+						Name:  StructName(enumName+"_Unknown", settings),
+						Value: "",
+						Type:  e.Name,
+					})
+				}
+
 				e.Constants = append(e.Constants, Constant{
 					Name:  StructName(enumName+"_"+value, settings),
 					Value: v,
@@ -179,10 +188,10 @@ func buildQueries(r *compiler.Result, settings config.CombinedSettings, structs 
 				})
 			}
 			gq.Arg = QueryValue{
-				Emit:       true,
-				Name:       "arg",
-				Struct:     columnsToStruct(r, gq.MethodName+"Params", cols, settings, false),
-				SQLPackage: sqlpkg,
+				Emit:        true,
+				Name:        "arg",
+				Struct:      columnsToStruct(r, gq.MethodName+"Params", cols, settings, false),
+				SQLPackage:  sqlpkg,
 				EmitPointer: settings.Go.EmitParamsStructPointers,
 			}
 		}
