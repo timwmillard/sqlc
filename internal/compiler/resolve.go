@@ -242,13 +242,6 @@ func (comp *Compiler) resolveCatalogRefs(qc *QueryCatalog, rvs []*ast.RangeVar, 
 						Location: left.Location,
 					}
 				}
-				if found > 1 {
-					return nil, &sqlerr.Error{
-						Code:     "42703",
-						Message:  fmt.Sprintf("column reference \"%s\" is ambiguous", key),
-						Location: left.Location,
-					}
-				}
 			}
 
 		case *ast.BetweenExpr:
