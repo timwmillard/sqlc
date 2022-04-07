@@ -16,7 +16,7 @@ WITH extra_data AS (
 		CASE WHEN ready THEN
 			'Ready'
 		ELSE 'Not Ready'
-		END::TEXT AS label
+		END AS label
 	FROM bar
 )
 SELECT extra_data.ready
