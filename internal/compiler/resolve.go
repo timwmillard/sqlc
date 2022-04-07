@@ -58,6 +58,36 @@ func (comp *Compiler) resolveCatalogRefs(qc *QueryCatalog, rvs []*ast.RangeVar, 
 		}
 		return nil
 	}
+	indexCTE := func(table *Table) error {
+		tables = append(tables, table.Rel)
+		if defaultTable == nil {
+			defaultTable = table.Rel
+		}
+		schema := table.Rel.Schema
+		if schema == "" {
+			schema = c.DefaultSchema
+		}
+		if _, exists := typeMap[schema]; !exists {
+			typeMap[schema] = map[string]map[string]*catalog.Column{}
+		}
+		typeMap[schema][table.Rel.Name] = map[string]*catalog.Column{}
+		for _, c := range table.Columns {
+			colType := c.Type
+			if colType == nil {
+				colType = &ast.TypeName{}
+			}
+			cc := &catalog.Column{
+				Name:      c.Name,
+				Type:      *colType,
+				IsNotNull: c.NotNull,
+				IsArray:   c.IsArray,
+				Comment:   c.Comment,
+				Length:    c.Length,
+			}
+			typeMap[schema][table.Rel.Name][c.Name] = cc
+		}
+		return nil
+	}
 
 	for _, rv := range rvs {
 		if rv.Relname == nil {
@@ -73,7 +103,12 @@ func (comp *Compiler) resolveCatalogRefs(qc *QueryCatalog, rvs []*ast.RangeVar, 
 		table, err := c.GetTable(fqn)
 		if err != nil {
 			// If the table name doesn't exist, fisrt check if it's a CTE
-			if _, qcerr := qc.GetTable(fqn); qcerr != nil {
+			cteTable, qcerr := qc.GetTable(fqn)
+			if qcerr != nil {
+				return nil, err
+			}
+			err = indexCTE(cteTable)
+			if err != nil {
 				return nil, err
 			}
 			continue
