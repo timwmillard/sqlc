@@ -10,6 +10,7 @@ import (
 
 type V1GenerateSettings struct {
 	Version   string              `json:"version" yaml:"version"`
+	Project   Project             `json:"project" yaml:"project"`
 	Packages  []v1PackageSettings `json:"packages" yaml:"packages"`
 	Overrides []Override          `json:"overrides,omitempty" yaml:"overrides,omitempty"`
 	Rename    map[string]string   `json:"rename,omitempty" yaml:"rename,omitempty"`
@@ -38,6 +39,7 @@ type v1PackageSettings struct {
 	OutputModelsFileName      string     `json:"output_models_file_name,omitempty" yaml:"output_models_file_name"`
 	OutputQuerierFileName     string     `json:"output_querier_file_name,omitempty" yaml:"output_querier_file_name"`
 	OutputFilesSuffix         string     `json:"output_files_suffix,omitempty" yaml:"output_files_suffix"`
+	StrictFunctionChecks      bool       `json:"strict_function_checks" yaml:"strict_function_checks"`
 }
 
 func v1ParseConfig(rd io.Reader) (Config, error) {
@@ -104,6 +106,7 @@ func (c *V1GenerateSettings) ValidateGlobalOverrides() error {
 func (c *V1GenerateSettings) Translate() Config {
 	conf := Config{
 		Version: c.Version,
+		Project: c.Project,
 	}
 
 	for _, pkg := range c.Packages {
@@ -134,6 +137,7 @@ func (c *V1GenerateSettings) Translate() Config {
 					OutputFilesSuffix:         pkg.OutputFilesSuffix,
 				},
 			},
+			StrictFunctionChecks: pkg.StrictFunctionChecks,
 		})
 	}
 

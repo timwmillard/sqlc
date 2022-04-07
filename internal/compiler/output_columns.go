@@ -72,7 +72,7 @@ func outputColumns(qc *QueryCatalog, node ast.Node) ([]*Column, error) {
 					continue
 				}
 
-				if err := findColumnForRef(ref, tables); err != nil {
+				if err := findColumnForRef(ref, tables, n); err != nil {
 					return nil, err
 				}
 			}
@@ -83,6 +83,8 @@ func outputColumns(qc *QueryCatalog, node ast.Node) ([]*Column, error) {
 		if len(targets.Items) == 0 && n.Larg != nil {
 			return outputColumns(qc, n.Larg)
 		}
+	case *ast.CallStmt:
+		targets = &ast.List{}
 	case *ast.TruncateStmt:
 		targets = &ast.List{}
 	case *ast.UpdateStmt:
@@ -182,14 +184,15 @@ func outputColumns(qc *QueryCatalog, node ast.Node) ([]*Column, error) {
 							cname = *res.Name
 						}
 						cols = append(cols, &Column{
-							Name:     cname,
-							Type:     c.Type,
-							Scope:    scope,
-							Table:    c.Table,
-							DataType: c.DataType,
-							NotNull:  c.NotNull,
-							IsArray:  c.IsArray,
-							Length:   c.Length,
+							Name:       cname,
+							Type:       c.Type,
+							Scope:      scope,
+							Table:      c.Table,
+							TableAlias: t.Rel.Name,
+							DataType:   c.DataType,
+							NotNull:    c.NotNull,
+							IsArray:    c.IsArray,
+							Length:     c.Length,
 						})
 					}
 				}
@@ -210,9 +213,18 @@ func outputColumns(qc *QueryCatalog, node ast.Node) ([]*Column, error) {
 			}
 			fun, err := qc.catalog.ResolveFuncCall(n)
 			if err == nil {
-				cols = append(cols, &Column{Name: name, DataType: dataType(fun.ReturnType), NotNull: !fun.ReturnTypeNullable})
+				cols = append(cols, &Column{
+					Name:       name,
+					DataType:   dataType(fun.ReturnType),
+					NotNull:    !fun.ReturnTypeNullable,
+					IsFuncCall: true,
+				})
 			} else {
-				cols = append(cols, &Column{Name: name, DataType: "any"})
+				cols = append(cols, &Column{
+					Name:       name,
+					DataType:   "any",
+					IsFuncCall: true,
+				})
 			}
 
 		case *ast.SubLink:
@@ -258,6 +270,17 @@ func outputColumns(qc *QueryCatalog, node ast.Node) ([]*Column, error) {
 				}
 			}
 			cols = append(cols, col)
+
+		case *ast.SelectStmt:
+			subcols, err := outputColumns(qc, n)
+			if err != nil {
+				return nil, err
+			}
+			first := subcols[0]
+			if res.Name != nil {
+				first.Name = *res.Name
+			}
+			cols = append(cols, first)
 
 		default:
 			name := ""
@@ -365,6 +388,8 @@ func sourceTables(qc *QueryCatalog, node ast.Node) ([]*Table, error) {
 		list = &ast.List{
 			Items: append(n.FromClause.Items, n.Relations.Items...),
 		}
+	case *ast.CallStmt:
+		list = &ast.List{}
 	default:
 		return nil, fmt.Errorf("sourceTables: unsupported node type: %T", n)
 	}
@@ -485,7 +510,7 @@ func outputColumnRefs(res *ast.ResTarget, tables []*Table, node *ast.ColumnRef) 
 	return cols, nil
 }
 
-func findColumnForRef(ref *ast.ColumnRef, tables []*Table) error {
+func findColumnForRef(ref *ast.ColumnRef, tables []*Table, selectStatement *ast.SelectStmt) error {
 	parts := stringSlice(ref.Fields)
 	var alias, name string
 	if len(parts) == 1 {
@@ -500,8 +525,27 @@ func findColumnForRef(ref *ast.ColumnRef, tables []*Table) error {
 		if alias != "" && t.Rel.Name != alias {
 			continue
 		}
+
+		// Find matching column
+		var foundColumn bool
 		for _, c := range t.Columns {
 			if c.Name == name {
+				found++
+				foundColumn = true
+			}
+		}
+
+		if foundColumn {
+			continue
+		}
+
+		// Find matching alias
+		for _, c := range selectStatement.TargetList.Items {
+			resTarget, ok := c.(*ast.ResTarget)
+			if !ok {
+				continue
+			}
+			if resTarget.Name != nil && *resTarget.Name == name {
 				found++
 			}
 		}

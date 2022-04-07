@@ -53,6 +53,8 @@ code ever again.
    howto/ddl.md
    howto/structs.md
 
+   howto/upload.md
+
 .. toctree::
    :maxdepth: 2
    :caption: Reference
@@ -64,6 +66,7 @@ code ever again.
    reference/query-annotations.md
    reference/language-support.rst
    reference/environment-variables.md
+   reference/changelog.md
 
 .. toctree::
    :maxdepth: 2

@@ -2,15 +2,27 @@ package python
 
 import (
 	"fmt"
-	"github.com/kyleconroy/sqlc/internal/config"
 	"sort"
 	"strings"
+
+	"github.com/kyleconroy/sqlc/internal/plugin"
 )
 
 type importSpec struct {
 	Module string
 	Name   string
 	Alias  string
+}
+
+func pyTypeIsSet(t *plugin.PythonType) bool {
+	return t.Module != "" || t.Name != ""
+}
+
+func pyTypeString(t *plugin.PythonType) string {
+	if t.Name != "" && t.Module == "" {
+		return t.Name
+	}
+	return t.Module + "." + t.Name
 }
 
 func (i importSpec) String() string {
@@ -27,7 +39,7 @@ func (i importSpec) String() string {
 }
 
 type importer struct {
-	Settings config.CombinedSettings
+	Settings *plugin.Settings
 	Models   []Struct
 	Queries  []Query
 	Enums    []Enum
@@ -76,7 +88,7 @@ func (i *importer) Imports(fileName string) []string {
 	return i.queryImports(fileName)
 }
 
-func (i *importer) modelImports() []string {
+func (i *importer) modelImportSpecs() (map[string]importSpec, map[string]importSpec) {
 	modelUses := func(name string) bool {
 		for _, model := range i.Models {
 			if structUses(name, model) {
@@ -87,21 +99,25 @@ func (i *importer) modelImports() []string {
 	}
 
 	std := stdImports(modelUses)
+	std["dataclasses"] = importSpec{Module: "dataclasses"}
 	if len(i.Enums) > 0 {
 		std["enum"] = importSpec{Module: "enum"}
 	}
 
 	pkg := make(map[string]importSpec)
-	pkg["dataclasses"] = importSpec{Module: "dataclasses"}
 
 	for _, o := range i.Settings.Overrides {
-		if o.PythonType.IsSet() && o.PythonType.Module != "" {
-			if modelUses(o.PythonType.TypeString()) {
+		if pyTypeIsSet(o.PythonType) && o.PythonType.Module != "" {
+			if modelUses(pyTypeString(o.PythonType)) {
 				pkg[o.PythonType.Module] = importSpec{Module: o.PythonType.Module}
 			}
 		}
 	}
+	return std, pkg
+}
 
+func (i *importer) modelImports() []string {
+	std, pkg := i.modelImportSpecs()
 	importLines := []string{
 		buildImportBlock(std),
 		"",
@@ -110,7 +126,7 @@ func (i *importer) modelImports() []string {
 	return importLines
 }
 
-func (i *importer) queryImports(fileName string) []string {
+func (i *importer) queryImportSpecs(fileName string) (map[string]importSpec, map[string]importSpec) {
 	queryUses := func(name string) bool {
 		for _, q := range i.Queries {
 			if q.SourceName != fileName {
@@ -137,8 +153,8 @@ func (i *importer) queryImports(fileName string) []string {
 	}
 
 	for _, o := range i.Settings.Overrides {
-		if o.PythonType.IsSet() && o.PythonType.Module != "" {
-			if queryUses(o.PythonType.TypeString()) {
+		if pyTypeIsSet(o.PythonType) && o.PythonType.Module != "" {
+			if queryUses(pyTypeString(o.PythonType)) {
 				pkg[o.PythonType.Module] = importSpec{Module: o.PythonType.Module}
 			}
 		}
@@ -146,7 +162,7 @@ func (i *importer) queryImports(fileName string) []string {
 
 	queryValueModelImports := func(qv QueryValue) {
 		if qv.IsStruct() && qv.EmitStruct() {
-			pkg["dataclasses"] = importSpec{Module: "dataclasses"}
+			std["dataclasses"] = importSpec{Module: "dataclasses"}
 		}
 	}
 
@@ -171,6 +187,12 @@ func (i *importer) queryImports(fileName string) []string {
 		}
 	}
 
+	return std, pkg
+}
+
+func (i *importer) queryImports(fileName string) []string {
+	std, pkg := i.queryImportSpecs(fileName)
+
 	modelImportStr := fmt.Sprintf("from %s import models", i.Settings.Python.Package)
 
 	importLines := []string{
@@ -181,6 +203,44 @@ func (i *importer) queryImports(fileName string) []string {
 		modelImportStr,
 	}
 	return importLines
+}
+
+type importFromSpec struct {
+	Module string
+	Names  []string
+	Alias  string
+}
+
+func buildImportBlock2(pkgs map[string]importSpec) []importFromSpec {
+	pkgImports := make([]importFromSpec, 0)
+	fromImports := make(map[string][]string)
+	for _, is := range pkgs {
+		if is.Name == "" || is.Alias != "" {
+			pkgImports = append(pkgImports, importFromSpec{
+				Module: is.Module,
+				Names:  []string{is.Name},
+				Alias:  is.Alias,
+			})
+		} else {
+			names, ok := fromImports[is.Module]
+			if !ok {
+				names = make([]string, 0, 1)
+			}
+			names = append(names, is.Name)
+			fromImports[is.Module] = names
+		}
+	}
+	for modName, names := range fromImports {
+		sort.Strings(names)
+		pkgImports = append(pkgImports, importFromSpec{
+			Module: modName,
+			Names:  names,
+		})
+	}
+	sort.Slice(pkgImports, func(i, j int) bool {
+		return pkgImports[i].Module < pkgImports[j].Module || pkgImports[i].Names[0] < pkgImports[j].Names[0]
+	})
+	return pkgImports
 }
 
 func buildImportBlock(pkgs map[string]importSpec) string {

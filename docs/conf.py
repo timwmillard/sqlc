@@ -22,7 +22,7 @@ copyright = '2021, Kyle Conroy'
 author = 'Kyle Conroy'
 
 # The full version, including alpha/beta/rc tags
-release = '1.11.0'
+release = '1.12.0'
 
 
 # -- General configuration ---------------------------------------------------
@@ -54,3 +54,11 @@ html_theme = 'sphinx_rtd_theme'
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
+
+html_logo = "_static/logo.png"
+html_theme_options = {
+    'logo_only': True,
+}
+
+def setup(app):
+    app.add_css_file('customize.css')
