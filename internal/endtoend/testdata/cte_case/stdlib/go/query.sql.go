@@ -9,34 +9,52 @@ import (
 	"context"
 )
 
-const cTECase = `-- name: CTECase :many
+const cTEWithUpdate = `-- name: CTEWithUpdate :many
+
 WITH extra_data AS (
-	SELECT
-		ready,
-		CASE WHEN ready THEN
-			'Ready'
-		ELSE 'Not Ready'
-		END::TEXT AS label
-	FROM bar
+    UPDATE bar
+    SET ready = true
+    WHERE name = $1
+    RETURNING ready, name
 )
-SELECT extra_data.ready
+SELECT ready, name 
 FROM extra_data
-WHERE label = $1
+WHERE name = $2
 `
 
-func (q *Queries) CTECase(ctx context.Context, label string) ([]bool, error) {
-	rows, err := q.db.QueryContext(ctx, cTECase, label)
+type CTEWithUpdateParams struct {
+	Name   string
+	Name_2 string
+}
+
+type CTEWithUpdateRow struct {
+	Ready bool
+	Name  string
+}
+
+// -- name: CTEWithAlias :many
+// WITH extra_data AS (
+// 	SELECT
+// 		ready,
+// 		name  AS label
+// 	FROM bar
+// )
+// SELECT *
+// FROM extra_data
+// WHERE label = $1;
+func (q *Queries) CTEWithUpdate(ctx context.Context, arg CTEWithUpdateParams) ([]CTEWithUpdateRow, error) {
+	rows, err := q.db.QueryContext(ctx, cTEWithUpdate, arg.Name, arg.Name_2)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []bool
+	var items []CTEWithUpdateRow
 	for rows.Next() {
-		var ready bool
-		if err := rows.Scan(&ready); err != nil {
+		var i CTEWithUpdateRow
+		if err := rows.Scan(&i.Ready, &i.Name); err != nil {
 			return nil, err
 		}
-		items = append(items, ready)
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

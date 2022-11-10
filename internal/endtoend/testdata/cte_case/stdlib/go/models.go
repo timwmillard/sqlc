@@ -8,4 +8,5 @@ import ()
 
 type Bar struct {
 	Ready bool
+	Name  string
 }

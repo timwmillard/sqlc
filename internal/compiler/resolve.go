@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/kyleconroy/sqlc/internal/debug"
 	"github.com/kyleconroy/sqlc/internal/sql/ast"
 	"github.com/kyleconroy/sqlc/internal/sql/astutils"
 	"github.com/kyleconroy/sqlc/internal/sql/catalog"
@@ -58,36 +59,36 @@ func (comp *Compiler) resolveCatalogRefs(qc *QueryCatalog, rvs []*ast.RangeVar, 
 		}
 		return nil
 	}
-	indexCTE := func(table *Table) error {
-		tables = append(tables, table.Rel)
-		if defaultTable == nil {
-			defaultTable = table.Rel
-		}
-		schema := table.Rel.Schema
-		if schema == "" {
-			schema = c.DefaultSchema
-		}
-		if _, exists := typeMap[schema]; !exists {
-			typeMap[schema] = map[string]map[string]*catalog.Column{}
-		}
-		typeMap[schema][table.Rel.Name] = map[string]*catalog.Column{}
-		for _, c := range table.Columns {
-			colType := c.Type
-			if colType == nil {
-				colType = &ast.TypeName{}
-			}
-			cc := &catalog.Column{
-				Name:      c.Name,
-				Type:      *colType,
-				IsNotNull: c.NotNull,
-				IsArray:   c.IsArray,
-				Comment:   c.Comment,
-				Length:    c.Length,
-			}
-			typeMap[schema][table.Rel.Name][c.Name] = cc
-		}
-		return nil
-	}
+	// indexCTE := func(table *Table) error {
+	// 	tables = append(tables, table.Rel)
+	// 	if defaultTable == nil {
+	// 		defaultTable = table.Rel
+	// 	}
+	// 	schema := table.Rel.Schema
+	// 	if schema == "" {
+	// 		schema = c.DefaultSchema
+	// 	}
+	// 	if _, exists := typeMap[schema]; !exists {
+	// 		typeMap[schema] = map[string]map[string]*catalog.Column{}
+	// 	}
+	// 	typeMap[schema][table.Rel.Name] = map[string]*catalog.Column{}
+	// 	for _, c := range table.Columns {
+	// 		colType := c.Type
+	// 		if colType == nil {
+	// 			colType = &ast.TypeName{}
+	// 		}
+	// 		cc := &catalog.Column{
+	// 			Name:      c.Name,
+	// 			Type:      *colType,
+	// 			IsNotNull: c.NotNull,
+	// 			IsArray:   c.IsArray,
+	// 			Comment:   c.Comment,
+	// 			Length:    c.Length,
+	// 		}
+	// 		typeMap[schema][table.Rel.Name][c.Name] = cc
+	// 	}
+	// 	return nil
+	// }
 
 	for _, rv := range rvs {
 		if rv.Relname == nil {
@@ -103,14 +104,14 @@ func (comp *Compiler) resolveCatalogRefs(qc *QueryCatalog, rvs []*ast.RangeVar, 
 		table, err := c.GetTable(fqn)
 		if err != nil {
 			// If the table name doesn't exist, fisrt check if it's a CTE
-			cteTable, qcerr := qc.GetTable(fqn)
+			_, qcerr := qc.GetTable(fqn)
 			if qcerr != nil {
 				return nil, err
 			}
-			err = indexCTE(cteTable)
-			if err != nil {
-				return nil, err
-			}
+			// err = indexCTE(cteTable)
+			// if err != nil {
+			// 	return nil, err
+			// }
 			continue
 		}
 		err = indexTable(table)
@@ -155,7 +156,7 @@ func (comp *Compiler) resolveCatalogRefs(qc *QueryCatalog, rvs []*ast.RangeVar, 
 				_, ok := node.(*ast.ColumnRef)
 				return ok
 			})
-
+			debug.Dump(list)
 			if len(list.Items) == 0 {
 				// TODO: Move this to database-specific engine package
 				dataType := "any"
@@ -176,6 +177,8 @@ func (comp *Compiler) resolveCatalogRefs(qc *QueryCatalog, rvs []*ast.RangeVar, 
 			switch left := list.Items[0].(type) {
 			case *ast.ColumnRef:
 				items := stringSlice(left.Fields)
+				// debug.Dump(items)
+				// fmt.Printf("items=%#v\n", items)
 				var key, alias string
 				switch len(items) {
 				case 1:
@@ -242,6 +245,13 @@ func (comp *Compiler) resolveCatalogRefs(qc *QueryCatalog, rvs []*ast.RangeVar, 
 						Location: left.Location,
 					}
 				}
+				// if found > 1 {
+				// 	return nil, &sqlerr.Error{
+				// 		Code:     "42703",
+				// 		Message:  fmt.Sprintf("column reference \"%s\" is ambiguous", key),
+				// 		Location: left.Location,
+				// 	}
+				// }
 			}
 
 		case *ast.BetweenExpr:
