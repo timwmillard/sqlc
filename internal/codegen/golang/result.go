@@ -109,7 +109,7 @@ type goColumn struct {
 type goEmbed struct {
 	modelType string
 	modelName string
-	fields    []string
+	fields    []EmbedField
 }
 
 // look through all the structs and attempt to find a matching one to embed
@@ -130,9 +130,12 @@ func newGoEmbed(embed *plugin.Identifier, structs []Struct) *goEmbed {
 			continue
 		}
 
-		fields := make([]string, len(s.Fields))
+		fields := make([]EmbedField, len(s.Fields))
 		for i, f := range s.Fields {
-			fields[i] = f.Name
+			fields[i] = EmbedField{
+				Name: f.Name,
+				Type: f.Type,
+			}
 		}
 
 		return &goEmbed{

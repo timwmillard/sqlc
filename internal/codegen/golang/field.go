@@ -15,8 +15,13 @@ type Field struct {
 	Tags    map[string]string
 	Comment string
 	Column  *plugin.Column
-	// EmbedFields contains the embedded fields that reuqire scanning.
-	EmbedFields []string
+	// EmbedFields contains the embedded fields that require scanning.
+	EmbedFields []EmbedField
+}
+
+type EmbedField struct {
+	Name string
+	Type string
 }
 
 func (gf Field) Tag() string {
