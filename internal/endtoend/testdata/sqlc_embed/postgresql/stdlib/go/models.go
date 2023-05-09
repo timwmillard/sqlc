@@ -8,6 +8,11 @@ import (
 	"database/sql"
 )
 
+type BazComment struct {
+	ID   int32
+	Name []string
+}
+
 type BazUser struct {
 	ID   int32
 	Name string

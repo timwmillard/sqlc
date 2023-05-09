@@ -16,6 +16,10 @@ CREATE TABLE baz.users (
     name varchar(255) NOT NULL
 );
 
+CREATE TABLE baz.comments (
+    id integer NOT NULL PRIMARY KEY,
+    name text[] NOT NULL
+);
 
 -- name: Only :one
 SELECT sqlc.embed(users) FROM users;
@@ -42,3 +46,7 @@ SELECT sqlc.embed(bu) FROM baz.users bu;
 -- name: WithCrossSchema :many
 SELECT sqlc.embed(users), sqlc.embed(bu) FROM users
 INNER JOIN baz.users bu ON users.id = bu.id;
+
+-- name: WithArrays :many
+SELECT sqlc.embed(users), sqlc.embed(bc) FROM users
+INNER JOIN baz.comments bc ON users.id = bc.id;

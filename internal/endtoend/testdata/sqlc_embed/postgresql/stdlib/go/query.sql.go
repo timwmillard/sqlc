@@ -86,6 +86,45 @@ func (q *Queries) WithAlias(ctx context.Context) (WithAliasRow, error) {
 	return i, err
 }
 
+const withArrays = `-- name: WithArrays :many
+SELECT users.id, users.name, users.age, bc.id, bc.name FROM users
+INNER JOIN baz.comments bc ON users.id = bc.id
+`
+
+type WithArraysRow struct {
+	User       User
+	BazComment BazComment
+}
+
+func (q *Queries) WithArrays(ctx context.Context) ([]WithArraysRow, error) {
+	rows, err := q.db.QueryContext(ctx, withArrays)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WithArraysRow
+	for rows.Next() {
+		var i WithArraysRow
+		if err := rows.Scan(
+			&i.User.ID,
+			&i.User.Name,
+			&i.User.Age,
+			&i.BazComment.ID,
+			pq.Array(&i.BazComment.Name),
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const withAsterisk = `-- name: WithAsterisk :one
 SELECT users.id, users.name, users.age, id, name, age FROM users
 `
